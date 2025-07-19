@@ -1,0 +1,836 @@
+//use os;
+//use uo;
+//use basic;
+
+//include "include/eventID";
+include ":gumps:gumps";
+include ":gumps:gumps_ex";
+//include ":gumps:gumps1";
+//include "include/client";
+//include "gumputil";
+//include "SpawnPoint";
+include "BaseXmlSpawner";
+include "xmlspawner2a";
+include "xmlspawnergump";
+
+
+// Point data structure.
+//var pt := struct;
+//public List<XmlSpawner.SpawnObject> m_SpawnObjects = new List<XmlSpawner.SpawnObject>();
+//pt.+spawnobjects := array;
+//pt.+sequentialspawn := -1;//off by default
+
+/*var spawnobject := struct;
+spawnobject.+typename := "";
+spawnobject.+maxcount := 0;//if disabled then 0
+spawnobject.+actualmaxcount := 0;
+spawnobject.+subgroup := 0;
+spawnobject.+spawnspertick := 0;
+spawnobject.+sequentialresetto := 0;
+spawnobject.+killsneeded := 0;
+spawnobject.+restrictkillstosubgroup := 0//bool
+spawnobject.+clearonadvance := 0;//bool
+spawnobject.+mindelay := 0.0;//double
+spawnobject.+maxdelay := 0.0;//double
+spawnobject.+disabled := 0;//bool
+spawnobject.+ignore := 0;//bool
+spawnobject.+packrange := 0;
+spawnobject.+
+*/
+
+//Costanti
+
+const MaxLoops := 10;
+const Version := "4.00";
+const ShowBoundsItemId := 14089;// 14089 Fire Column // 3555 Campfire // 8708 Skull Pole
+const SpawnDataSetName := "Spawns";
+const SpawnTablePointName := "Points";
+const SpawnFitSize := 16;
+const BaseItemId := 0x1F1C;// Purple Magic Crystal
+const ShowItemId := 0x3E57;// ships mast
+const defaultTriggerSound := 0x1F4;
+const XmlSpawnDir := "Spawns";
+const XmlMultiDir := "XmlMultis";
+const XmlConfigsDir := "SpawnerConfigs";
+const MaxSmartSectorListSize := 1024;
+const XmlTableName := "Properties";
+const XmlDataSetName := "XmlSpawner";
+const MaxMoveCheck := 10; // limit number of players that can be checked for triggering in a single OnMovement tick
+
+//funzione della classe spawnobject
+function GetParm(str, separator)
+	// find the parm separator in the string
+	// then look for the termination at the ':'  or end of string
+	// and return the stuff between
+	//TODO: fix nuova funzione?
+	var arg := SplitWords(cstr(str),cstr(separator));//BaseXmlSpawner.SplitString(str, separator);
+	//should be 2 args
+	if (len(arg) > 1)
+		// look for the end of parm terminator (could also be eol)
+		var parm := SplitWords(cstr(arg[1]),":");
+		if (len(parm) > 0)
+			return (parm[0]);
+		endif
+	endif
+	return "";
+endfunction
+/*
+function LoadSpawnObjectsFromString(ObjectList)
+endfunction
+function LoadSpawnObjectsFromString2(ObjectList)
+endfunction
+*/
+/*function TotalSpawnedObjects(m_SpawnObjects)
+	if (m_SpawnObjects)
+		// defrag so that accurately reflects currently active spawns
+		//Defrag(true);
+
+		var count := 0;
+
+		foreach (so in m_SpawnObjects)
+			count += len(so.spawnedobjects);
+		return count;
+	endif
+
+	return 0;
+endfunction
+*/
+//fine funzione
+
+program SpawnPoint(who, spawner)
+	//if (from == null || from.Deleted || from.AccessLevel < AccessLevel.GameMaster || (m_SpawnerGump != null && SomeOneHasGumpOpen)) return;
+	if (who.cmdlevel < 3)
+		return 0;
+	endif
+	/*
+	//
+	//	Carico le proprietà
+	*/
+	const defMinDelay := 300;
+	const defMaxDelay := 600;
+	const defMinRefractory := 0;
+	const defMaxRefractory := 0;
+	const defTODStart := 0;
+	const defTODEnd := 0;
+	const defDuration := 0;
+	const defDespawnTime := 0;
+	const defIsGroup := 0;
+	const defTeam := 0;
+	const defProximityTriggerSound := defaultTriggerSound;
+	const defAmount := 1;
+	const defRelativeHome := 1;
+	const defSpawnRange := 5;
+	const defHomeRange := 5;
+	const defTriggerProbability := 1.0;
+	const defProximityRange := -1;
+	const defKillReset := 1;
+	//const defTODMode := TODModeType.Realtime;
+	//const m_GlobalSectorTimer;
+	const SmartSpawningSystemEnabled := 0;
+	//WarnTimer2 m_WarnTimer;
+	//Dictionary<Type, PropertyInfo> holdSmartSpawningHash;
+	//const seccount;
+	// sector hashtable for each map
+	//private static Dictionary<Sector, List<XmlSpawner>>[] GlobalSectorTable = new Dictionary<Sector, List<XmlSpawner>>[6];
+
+	/*
+	//
+	// Carico le variabili
+	*/
+	if (!spawner.name)
+		spawner.name := "spawner";
+	endif
+	//var pt := SpawnerStruct( spawner );
+	SpawnerStruct( spawner );
+
+	/*pt.+name := cstr(spawner.name);
+
+	//spawner.uniqueid
+	pt.+playercreated := cint(GetObjProperty(spawner, "PlayerCreated"));//di base bool := 0
+	pt.+homerangeisrelative := cint(GetObjProperty(spawner, "HomeRangeIsRelative"));//di base bool := 0
+	pt.+team:= cint(GetObjProperty(spawner, "Team"));
+	pt.+homerange := cint(GetObjProperty(spawner, "HomeRange"));
+	pt.+stackamount := cint(GetObjProperty(spawner, "StackAmount"));
+	pt.+spawnrange := cint(GetObjProperty(spawner, "SpawnRange"));
+	pt.+maxcount := cint(GetObjProperty(spawner, "Count"));
+	pt.+mindelay := cint(GetObjProperty(spawner, "MinDelay"));
+	pt.+maxdelay := cint(GetObjProperty(spawner, "MaxDelay"));
+	pt.+duration := cint(GetObjProperty(spawner, "Duration"));
+	pt.+spawnobjects := GetObjProperty(spawner, "SpawnObjects");//spawnobjects array
+	pt.+end := cint(GetObjProperty(spawner, "End"));
+	pt.+refractend := cint(GetObjProperty(spawner, "RefractEnd"));
+	pt.+durend := cint(GetObjProperty(spawner, "DurEnd"));
+	//pt.+timer
+	//pt.+durtimer
+	//pt.+refractorytimer
+	pt.+running := cint(GetObjProperty(spawner, "Running")); //bool
+	pt.+group := cint(GetObjProperty(spawner, "Group"));//bool
+	pt.+x := cint(GetObjProperty(spawner, "X"));
+	pt.+y := cint(GetObjProperty(spawner, "Y"));
+	pt.+width := cint(GetObjProperty(spawner, "Width"));
+	pt.+height :=  cint(GetObjProperty(spawner, "Height"));
+	//pt.+waypoint
+	//ShowContainerStatic
+	pt.+proximityactivated := cint(GetObjProperty(spawner, "ProximityActivated"));//bool
+	pt.+refractactivated := cint(GetObjProperty(spawner, "RefractActivated"));//bool
+	pt.+duractivated := cint(GetObjProperty(spawner, "DurActivated"));//bool
+	//pt.+todstart
+	//pt.+todend
+	pt.+refractmin := cint(GetObjProperty(spawner, "MinRefractory"));
+	pt.+refractmax := cint(GetObjProperty(spawner, "MaxRefractory"));
+	pt.+triggeroncarried := cstr(GetObjProperty(spawner, "ItemTriggerName"));
+	pt.+notriggeroncarried := cstr(GetObjProperty(spawner, "NoItemTriggerName"));
+	pt.+triggerobject := GetObjProperty(spawner, "ObjectPropertyItem");//item (serial?)
+	pt.+triggerobjectprop := cstr(GetObjProperty(spawner, "ObjectPropertyName"));
+	pt.+status_str;
+	pt.+killcount := cint(GetObjProperty(spawner, "KillCount"));
+	pt.+spawnregion := GetObjProperty(spawner, "Region");
+	pt.+regionname := cstr(GetObjProperty(spawner, "RegionName"));
+
+	pt.+textentrybook;//List<XmlTextEntryBook> m_TextEntryBook;
+	pt.+spawnergump;//SpawnerGump
+
+	pt.+isinactivated := cint(GetObjProperty(spawner, "IsInactivated"));//bool
+	pt.+smartspawning := cint(GetObjProperty(spawner, "SmartSpawning"));//bool
+
+	pt.+inrespawn := 0;
+	pt.+disableglobalautoreset := cint(GetObjProperty(spawner, "DisableGlobalAutoReset"));//bool
+
+	//TODO: forse meglio metterlo alla fine
+	pt.+currentcount := cint(TotalSpawnedObjects(pt));
+
+	// flag the first person to open the spawner as the placer
+	//if (FirstModifiedBy == null) FirstModifiedBy = from.Name;
+	pt.+firstmodifiedby := GetObjProperty(spawner, "FirstModifiedBy");
+	*/
+	var firstmodifiedby := GetObjProperty(spawner, "FirstModifiedBy");
+	if (!firstmodifiedby || firstmodifiedby == "<NONE>")
+		//pt.firstmodifiedby := who.name;
+		SetObjProperty(spawner, "FirstModifiedBy", who.name);
+	endif
+
+	//pt.lastmodifiedby := who.name;//GetObjProperty(spawner, "LastModifiedBy");
+	SetObjProperty(spawner, "LastModifiedBy", who.name);
+
+	// clear any text entry books that might still be around
+	//DeleteTextEntryBook();
+
+	//var cont1 := 0;
+	//while (!cont1)
+	//	cont1 := 
+	XmlSpawnerGump(who, spawner/*, pt*/, 0, 0, 0, 0, 0);//XmlSpawnerGump
+	//endwhile;
+
+	/*if (who.serial != 0x40fb00) // <--- GM Kano
+
+		var pwd := SendTextEntryGump( who, "Enter the password for use this command:", TE_CANCEL_ENABLE,TE_STYLE_NORMAL, 15);
+
+		var ok:=0;
+		if (pwd)
+			if (pwd="1208")
+				ok:=1;
+			endif
+		endif
+
+		if (!ok)
+			return;
+		endif
+	endif*/
+
+/*
+//	EX SPAWN POINT DA QUI
+*/
+/*
+	pt.+disabled := CInt(GetObjProperty(spawner, "Disabled"));
+	pt.+despawn := CInt(GetObjProperty(spawner, "Despawn"));
+	pt.+group := CInt(GetObjProperty(spawner, "Group"));
+	pt.+type := GetObjProperty(spawner, "Type");
+	pt.+template := GetObjProperty(spawner, "Template");
+	pt.+max := CInt(GetObjProperty(spawner, "Max"));
+	pt.+range := CInt(GetObjProperty(spawner, "Range"));
+	pt.+freq := CInt(GetObjProperty(spawner, "Frequency"));
+	pt.+expire := CInt(GetObjProperty(spawner, "Expire"));
+	pt.+expirenum := CInt(GetObjProperty(spawner, "ExpireNum"));
+	pt.+starthr := CInt(GetObjProperty(spawner, "HrStart"));
+	pt.+endhr := CInt(GetObjProperty(spawner, "HrEnd"));
+	pt.+note := GetObjProperty(spawner, "Note");
+	if (!pt.note)
+		pt.note := "<NONE>";
+	endif
+
+	var cont := 0;
+	while (!cont)
+		cont := ShowPointGump(who, spawner);//XmlSpawnerGump
+	endwhile;
+*/
+endprogram
+
+//HelpGump(XmlSpawner spawner, XmlSpawnerGump spawnergump, int X, int Y)
+function HelpGump(byref who,byref spawner_item, X, Y)
+
+	var width := cint(370);
+	var hpgump := GFCreateGump(0, 0, width, 480);
+	AddPage(hpgump, 0);
+
+	AddBackground(hpgump, 20, 0, width, 480, 5054);
+
+	AddPage(hpgump, 1);
+	AddImageTiled(hpgump, 20, 0, width, 480, 0x52);
+
+	AddLabel(hpgump, 27, 2, 0x384, "Standalone Keywords NB: ( « stands for < ) ( » stands for > )");
+	AddHtml(hpgump, 25, 20, cint(width - 10), 440,
+		"mobtype[,arg1,arg2,...]\n" +
+		"SET[,itemname o seriale][,itemtype]/prop/value/...\n" +
+		"SETONMOB,nomemob[,mobtype]/prop/value/...\n" +
+		"SETONTHIS[,proptest]/prop/value/...\n" +
+		"SETONTRIGMOB/prop/value/...\n" +
+		"FOREACH,objecttype[,name][,distance]/action (KILL,DAMAGE,etc)\n" +
+		"SETVAR,namevar/value\n" +
+		"SETONNEARBY,distance,name[,type][,searchcontainers (true/false)]/prop/value/...\n" +
+		"SETONPETS,distance[,name]/prop/value/...\n" +
+		"SETONCARRIED,itemname[,itemtype][,equippedonly (true/false)]/prop/value/...\n" +
+		"SETONSPAWN[,spawnername],subgroup/prop/value/...\n" +
+		"SETONSPAWNENTRY[,spawnername],entrystring/prop/value/...\n" +
+		"SETONPARENT/prop/value/...\n" +
+		"TAKEGIVE[,quantity[,searchinbank (true/false),[type]]]/itemnametotake/GIVE/itemtypetogive\n" +
+		"GIVE[,probability (0.01=1% 1=100%)]/itemtypetogive\n" +
+		"GIVE[,probability (0.01=1% 1=100%)]/«itemtypedadare/proprietà/valore/...»\n" +
+		"TAKE[,probability (0.01=1% 1=100%)[,quantity[,searchinbank (true/false)[,itemtype]]]]/nomeitem\n" +
+		"TAKEBYTYPE[,probability (0.01=1% 1=100%)[,quantity[,searchinbank (true/false)]]]/itemtype\n" +
+		"GUMP,titolo,gumptype (*)[,gumpconstructor]/text  *(0=messaggio - 1=yes/no - 2=response - 3=questgump - 4=multiple response)\n" +
+		"BROWSER/url\n" +
+		"SENDMSG[,color]/text\n" +
+		"SENDASCIIMSG[,color][,fontnumber]/text (no accent)\n" +
+		"WAITUNTIL[,duration][,timeout][/condition][/spawngroup]\n" +
+		"WHILE/condition/spawngroup\n" +
+		"SPAWN[,spawnername],subgroup\n" +
+		"IF/condition/thenspawn[/elsespawn]\n" +
+		"DESPAWN[,spawnername],subgroup\n" +
+		"SPAWN[,spawnername],subgroup\n" +
+		"GOTO/subgroup\n" +
+		"COMMAND/command string (pay attention please!)\n" +
+		"MUSIC,musicname[,distance]\n" +
+		"SOUND,soundnumber\n" +
+		"MEFFECT,itemid[,speed][,x,y,z][,x2,y2,z2]\n" +
+		"EFFECT,itemid,duration[,x,y,z] OR EFFECT,itemid,durata[,trigmob]\n" +
+		"POISON,levelname[,distance][,onlyplayers (true/false)]\n" +
+		"DAMAGE,damage,phys,fire,cold,pois,energy[,distance][,onlyplayers (true/false)]\n" +
+		"RESURRECT[,distance][,pets (true/false)]\n" +
+		"CAST,spellnumber[,argomenti] OR CAST,spellname[,argomenti]\n" +
+		"BCAST[,color][,fontnumber]/text\n" +
+		"BSOUND,soundnumber",
+		0, 1);
+	AddButton(hpgump, width - 30, 5, 0x15E1, 0x15E5, 200, 0, 2);
+	AddLabel(hpgump, width - 38, 2, 0x384, "1");
+	AddButton(hpgump, width - 60, 5, 0x15E3, 0x15E7, 200, 0, 4);
+
+	AddPage(hpgump, 2);
+	AddLabel(hpgump, 27, 2, 0x384, "Value and Itemtype Keywords NB: ( « EQUALS TO < ) ( » EQUALS TO > )");
+	AddHtml(hpgump, 25, 20, width - 10, 440,
+		"property/@value\n\n" +
+		"Special KeyWords\n" +
+		"ARMOR,minlevel,maxlevel\n" +
+		"WEAPON,minlevel,maxlevel\n" +
+		"JARMOR,minlevel,maxlevel\n" +
+		"JWEAPON,minlevel,maxlevel\n" +
+		"SARMOR,minlevel,maxlevel\n" +
+		"SHIELD,minlevel,maxlevel\n" +
+		"JEWELRY,minlevel,maxlevel\n" +
+		"ITEM,serial (to find that item)\n" +
+		"SCROLL,mincircle,maxcircle\n" +
+		"LOOT,methodname\n" +
+		"NECROSCROLL,index\n" +
+		"LOOTPACK,loottype\n" +
+		"POTION\n" +
+		"TAKEN (it will help you find item taken during quest, xmlspawners and such)\n" +
+		"GIVEN (equal to TAKEN, but for item given)\n" +
+		"MULTIADDON,filename\n\n" +
+		"{the GET or RND keyword are used inside brachets}\n" +
+		"RND,min,max\n" +
+		"RNDBOOL\n" +
+		"RNDLIST,int1[,int2,...]\n" +
+		"RNDSTRLIST,str1[,str2,...]\n" +
+		"MY,prop (for spawner mob)\n" +
+		"GET,[itemname or serial or SETITEM(*)][,itemtype],prop (*: the setitem of spawner, it's written SETITEM, upper char!)\n" +
+		"GET,[itemname or serial or SETITEM][,itemtype],«ATTACHMENT,type,name,property»\n" +
+		"GETVAR,varname (XmlLocalVariable)\n" +
+		"GETONMOB,mobname[,mobtype],prop\n" +
+		"GETONMOB,mobname[,mobtype],«ATTACHMENT,type,nome,prop»\n" +
+		"GETONCARRIED,itemname[,itemtype][,equippedonly (true/false)],prop\n" +
+		"GETONCARRIED,itemname[,itemtype][,equippedonly (true/false)],«ATTACHMENT,type,nome,prop»\n" +
+		"GETONTRIGMOB,prop\n" +
+		"GETONTRIGMOB,«ATTACHMENT,type,name,prop»\n" +
+		"GETONNEARBY,distance,name[,type][,searchcontainers (true/false)],prop\n" +
+		"GETONNEARBY,distance,name[,type][,searchcontainers (true/false)],«ATTACHMENT,type,name,prop»\n" +
+		"GETONPARENT,prop\n" +
+		"GETONPARENT,«ATTACHMENT,type,name,prop»\n" +
+		"GETONTHIS,prop\n" +
+		"GETONTHIS,«ATTACHMENT,type,name,prop»\n" +
+		"GETONTAKEN,prop\n" +
+		"GETONTAKEN,«ATTACHMENT,type,name,prop»\n" +
+		"GETONGIVEN,prop\n" +
+		"GETONGIVEN,«ATTACHMENT,type,name,prop»\n" +
+		"GETONSPAWN[,nomespawner],subgroup,prop\n" +
+		"GETONSPAWN[,nomespawner],subgroup,COUNT (special - returns the number of objects spawned!)\n" +
+		"GETONSPAWN[,spawnername],subgroup,«ATTACHMENT,type,name,prop»\n" +
+		"GETFROMFILE,filename\n" +
+		"GETACCOUNTTAG,tagname\n" +
+		"MUL,value or MUL,min,max (fractal numbers)\n" +
+		"INC,value or INC,min,max (integer numbers)\n" +
+		"MOB,name[,mobtype] (search the id of a mob by name and eventually by type)\n" +
+		"TRIGMOB\n" +
+		"AMOUNTCARRIED,itemtype[,searchinbank (true/false)][,itemname]\n" +
+		"PLAYERSINRANGE,distance\n" +
+		"TRIGSKILL,name or value or base or cap\n" +
+		"RANDNAME,nametype (female,male etc)\n" +
+		"MUSIC,musicname[,distance]\n" +
+		"SOUND,value\n" +
+		"EFFECT,itemid,duration[,x,y,z]\n" +
+		"BOLTEFFECT[,sound[,color]]\n" +
+		"MEFFECT,itemid[,speed][,x,y,z][,x2,y2,z2]\n" +
+		"PEFFECT,itemid,speed,[x,y,z]\n" +
+		"POISON,level[,distance][,onlyplayers (true/false)]\n" +
+		"DAMAGE,damage,phys,fire,cold,pois,energy[,distance][,onlyplayers (true/false)]\n" +
+		"ADD[,probability (0.01=1% 1=100%)]/itemtype[,args]\n" +
+		"ADD[,probability (0.01=1% 1=100%)]/«itemtype[,args]/prop/value...»\n" +
+		"EQUIP[,probability (0.01=1% 1=100%)]/itemtype[,args]\n" +
+		"EQUIP[,probability (0.01=1% 1=100%)]/«itemtype[,args]/prop/value...»\n" +
+		"DELETE\n" +
+		"KILL\n" +
+		"UNEQUIP,layer[,delete (true/false)]\n" +
+		"ATTACH[,probability (0.01=1% 1=100%)]/attachmenttype[,args]\n" +
+		"ATTACH[,probability (0.01=1% 1=100%)]/«attachmenttype[,args]/prop/value...»\n" +
+		"MSG[,probability (0.01=1% 1=100%)]/text\n" +
+		"ASCIIMSG[,probability (0.01=1% 1=100%)][,color][,fontnumber]/text\n" +
+		"SENDMSG[,probability (0.01=1% 1=100%)][,color]/text\n" +
+		"SENDASCIIMSG[,probability (0.01=1% 1=100%)][,color][,fontnumber]/text\n" +
+		"SAY[,probability (0.01=1% 1=100%)]/text\n" +
+		"SPEECH[,probability (0.01=1% 1=100%)][,keywordnumber]\n" +
+		"OFFSET,x,y,[,z]\n" +
+		"ANIMATE,action[,framecount][,repeatcount][,forward true/false][,repeat true/false][,delay]\n" +
+		"FACETO,x,y (turns the mobile to face in a direction by the coords given)\n" +
+		"SETVALUE,nomevar,valore,durata (XmlValue)\n" +
+		"FLASH,number (1 fade black - 2 fade white - 3 light flash - 4 light to black flash - 5 black flash SOLO PG)\n" +
+		"PRIVMSG[,probability (0.01=1% 1=100%)][,color]/text (shows a message only to that player)\n" +
+		"BCAST[,color][,font]/message\n" +
+		"always...«ATTACHMENT,type,name,prop» as a property on  GET\n" +
+		"SKILL,skillname\n" +
+		"STEALABLE,stealable (true/false)",
+		0, 1);
+		AddButton(hpgump, width - 30, 5, 0x15E1, 0x15E5, 200, 0, 3);
+		AddLabel(hpgump, width - 41, 2, 0x384, "2");
+		AddButton(hpgump, width - 60, 5, 0x15E3, 0x15E7, 200, 0, 1);
+
+		AddPage(hpgump, 3);
+		AddLabel(hpgump, 27, 2, 0x384, "[ Commands");
+
+		AddHtml(hpgump, 25, 20, width - 10, 440,
+			"XmlAdd [-defaults]\n" +
+			"XmlShow\n" +
+			"XmlHide\n" +
+			"XmlFind\n" +
+			"AddAtt type [args]\n" +
+			"GetAtt [type]\n" +
+			"DelAtt [type][serialno]\n" +
+			"AvailAtt\n" +
+			"SmartStat [accesslevel GameMaster]\n" +
+			"OptimalSmartSpawning [maxdiff]\n" +
+			"XmlSpawnerWipe [prefix]\n" +
+			"XmlSpawnerWipeAll [prefix]\n" +
+			"XmlSpawnerRespawn [prefix]\n" +
+			"XmlSpawnerRespawnAll [prefix]\n" +
+			"XmlHome [go][gump][send]\n" +
+			"XmlUnLoad filename [prefix]\n" +
+			"XmlLoad filename [prefix]\n" +
+			"XmlLoadHere filename [prefix][-maxrange range]\n" +
+			"XmlNewLoad filename [prefix]\n" +
+			"XmlNewLoadHere filename [prefix][-maxrange range]\n" +
+			"XmlSave filename [prefix]\n" +
+			"XmlSaveAll filename [prefix]\n" +
+			"XmlSaveOld filename [prefix]\n" +
+			"XmlSpawnerSaveAll filename [prefix]\n" +
+			"XmlImportSpawners filename\n" +
+			"XmlImportMap filename\n" +
+			"XmlImportMSF filename\n" +
+			"XmlDefaults [defaultpropertyname value]\n" +
+			"XmlGet property\n" +
+			"XmlSet property value",
+			0, 1);
+
+		AddButton(hpgump, width - 30, 5, 0x15E1, 0x15E5, 200, 0, 4);
+		AddLabel(hpgump, width - 41, 2, 0x384, "3");
+		AddButton(hpgump, width - 60, 5, 0x15E3, 0x15E7, 200, 0, 2);
+
+		AddPage(hpgump, 4);
+		AddLabel(hpgump, 27, 2, 0x384, "Quest types");
+		AddHtml(hpgump, 25, 20, width - 10, 180,
+			"KILL,mobtype[,count][,proptest]\n" +
+			"KILLNAMED,mobname[,type][,count][,proptest]\n" +
+			"GIVE,mobname,itemtype[,count][,proptest]\n" +
+			"GIVENAMED,mobname,itemname[,type][,count][,proptest]\n" +
+			"COLLECT,itemtype[,count][,proptest]\n" +
+			"COLLECTNAMED,itemname[,itemtype][,count][,proptest]\n" +
+			"ESCORT[,mobname][,proptest]\n",
+			0, 1);
+
+		AddLabel(27, 200, 0x384, "Trigger/NoTriggerOnCarried");
+		AddHtml(25, 220, width - 10, 50,
+			"ATTACHMENT,name,type\n" +
+			"itemname[,type][,EQUIPPED][,objective#,objective#,...]\n",
+			0, 1);
+
+		AddLabel(hpgump, 27, 300, 0x384, "GUMPITEMS");
+		AddHtml(hpgump, 25, 320, width - 10, 150,
+			"BUTTON,gumpid,x,y\n" +
+			"HTML,x,y,width,height,text\n" +
+			"IMAGE,gumpid,x,y[,hue]\n" +
+			"IMAGETILED,gumpid,x,y,width,height\n" +
+			"ITEM,itemid,x,y[,hue]\n" +
+			"LABEL,x,y,labelstring[,labelcolor]\n" +
+			"RADIO,gumpid1,gumpid2,x,y[,initialstate]\n" +
+			"TEXTENTRY,x,y,width,height[,text][,textcolor]\n",
+			0, 1);
+
+		AddButton(hpgump, width - 30, 5, 0x15E1, 0x15E5, 200, 0, 1);
+		AddLabel(hpgump, width - 41, 2, 0x384, "4");
+		AddButton(hpgump, width - 60, 5, 0x15E3, 0x15E7, 200, 0, 3);
+	//var keyret := 
+		GFSendGump(who, hpgump);
+endfunction
+
+function TextEntryGump(byref who,byref spawner)
+	GFSetRef(0, 0);
+
+	AddPage(0);
+
+	AddBackground(20, 0, 220, 354, 5054);
+	AddAlphaRegion(20, 0, 220, 354);
+	AddImageTiled(23, 5, 214, 270, 0x52);
+	AddImageTiled(24, 6, 213, 261, 0xBBC);
+	var index;
+	var label := spawner.name +" entry";//spawner.Name + " entry " + index;
+	AddLabel(28, 10, 0x384, label);
+
+	// OK button
+	AddButton(25, 325, 0xFB7, 0xFB9, 1, 1, 0);
+	// Close button
+	AddButton(205, 325, 0xFB1, 0xFB3, 0, 1, 0);
+	// Edit button
+	AddButton(100, 325, 0xEF, 0xEE, 2, 1, 0);
+	var str;
+	//if (index < len(spawner.SpawnObjects))
+	//	str = cstr(spawner.SpawnObjects[index].TypeName);
+	//endif
+	// main text entry area
+	AddTextEntry(35, 30, 200, 251, 0, 0, str);
+
+	// editing text entry areas
+	// background for text entry area
+	AddImageTiled(23, 275, 214, 23, 0x52);
+	AddImageTiled(24, 276, 213, 21, 0xBBC);
+	AddImageTiled(23, 300, 214, 23, 0x52);
+	AddImageTiled(24, 301, 213, 21, 0xBBC);
+
+	AddTextEntry(35, 275, 200, 21, 0, 1, null);
+	AddTextEntry(35, 300, 200, 21, 0, 2, null);
+
+	//TODO: inserire la risposta
+	var keyret := GFSendGump(who);
+	/*
+	if (keyret[npc.keyid])
+		SetObjProperty(point, "Type", "NPC");
+		pt.type := "NPC";
+		return 0;
+	elseif (keyret[container.keyid])
+		SetObjProperty(point, "Type", "Container");
+		pt.type := "Container";
+		return 0;
+	elseif (keyret[item.keyid])
+		SetObjProperty(point, "Type", "Item");
+		pt.type := "Item";
+		return 0;
+	endif
+	*/
+	/*
+	if (info == null || state == null || state.Mobile == null) return;
+
+	if (m_Spawner == null || m_Spawner.Deleted)
+		return;
+	*/
+	var update_entry := 0;
+	var edit_entry := 0;
+
+	if (keyret[0])// Close
+		update_entry := 0;
+	elseif (keyret[1])// Okay
+		update_entry := 1;
+	elseif (keyret[2])// Edit
+		edit_entry := 1;
+	else
+		update_entry := true;
+	endif
+
+
+	if (edit_entry)
+		// get the old text
+		//TextRelay entry = info.GetTextEntry(1);
+		var oldtext = cstr(GFExtractData(1, keyret));//entry.Text;
+		// get the new text
+		//entry = info.GetTextEntry(2);
+		var newtext = cstr(GFExtractData(2, keyret));//entry.Text;
+		// make the substitution
+		//entry = info.GetTextEntry(0);
+		var origtext = cstr(GFExtractData(0, keyret));//entry.Text;
+
+		if (origtext && oldtext && newtext)
+		//try
+		//{
+			var firstindex := origtext.IndexOf(oldtext);
+			if (firstindex >= 0)
+				var secondindex := cint(firstindex + len(oldtext));
+				var lastindex := cint(len(origtext) - 1);
+				var editedtext;
+
+				if (firstindex > 0)
+					editedtext := origtext.Substring(0, firstindex) + newtext + origtext.Substring(secondindex, lastindex - secondindex + 1);
+				else
+					editedtext := newtext + origtext.Substring(secondindex, lastindex - secondindex + 1);
+				endif
+
+				if (m_index < len(spawner.SpawnObjects))
+					spawner.SpawnObjects[m_index].TypeName := editedtext;
+				else
+					//Update the creature list
+					spawner.SpawnObjects = spawnerGump.CreateArray(info, state.Mobile);
+				endif
+			endif
+		//}
+		//catch { }
+		endif
+		// open a new text entry gump
+		state.Mobile.SendGump(new TextEntryGump(m_Spawner, m_SpawnerGump, m_index, this.X, this.Y));
+		return;
+	endif
+
+	if (update_entry)
+		//TextRelay entry = info.GetTextEntry(0);
+		if (m_index < len(spawner.SpawnObjects))
+			spawner.SpawnObjects[m_index].TypeName = cstr(GFExtractData(0, keyret));//entry.Text;
+		else
+			// Update the creature list
+			m_Spawner.SpawnObjects = spawnerGump.CreateArray(info, state.Mobile);
+		endif
+	endif
+	// Create a new gump
+
+	//m_Spawner.OnDoubleClick( state.Mobile);
+	// open a new spawner gump
+	state.Mobile.SendGump(new XmlSpawnerGump(m_Spawner, this.X, this.Y, m_SpawnerGump.m_ShowGump, m_SpawnerGump.xoffset, m_SpawnerGump.page));
+
+endfunction
+
+///////////////////////////////////////////////////////////
+// Purpose: Displays the gump.
+// Params:  who   Ref to who is displaying it.
+//   point  Ref to point being displayed.
+// Returns: N/A
+///////////////////////////////////////////////////////////
+/*function ShowPointGump(byref who, byref point)
+	GFSetRef(0, 0);
+
+	// Main page.
+	GFPage(0);
+	GFNoDispose();
+	GFResizePic(0, 0, BKGND_STONESLAB, 270, 340);
+	GFTilePic(0, 0, point.graphic);
+	GFTextLine(30, 5, COLOR_YELLOW, "Spawn Point Config");
+
+	var state;
+	GFTextLine(30, 25, COLOR_BLUE_LIGHT, "State:");
+	if (pt.disabled)
+		state := GFCheckBox(80, 25, G_STONE_CHECK_0, G_STONE_X_0, 1);
+		GFTextLine(120, 25, COLOR_RED, "Disabled");
+	else
+		state := GFCheckBox(80, 25, G_STONE_CHECK_0, G_STONE_X_0, 0);
+		GFTextLine(120, 25, COLOR_GREEN, "Enabled");
+	endif
+
+	GFButtonPage(120, 50, G_GRAY_CIRCLE_0, G_GRAY_CIRCLE_1, 2);
+	GFTextLine(20, 50, COLOR_BLUE_LIGHT, "Type:");
+	GFTextLine(140, 50, COLOR_GREEN_LIGHT, pt.type);
+
+	GFTextLine(20, 70, COLOR_BLUE_LIGHT, "Template:");
+	GFGumpPic(120, 70, G_TX_MARBLE_M);
+	var template := GFTextEntry(120, 70, 100, 20, COLOR_GREEN, pt.template);
+
+	GFTextLine(20, 90, COLOR_BLUE_LIGHT, "Max:");
+	GFGumpPic(120, 90, G_TX_MARBLE_S_DK);
+	var max := GFTextEntry(125, 90, 50, 20, COLOR_GREEN, pt.max);
+	GFTextLine(185, 90, COLOR_BLUE_LIGHT, "(#)");
+
+	GFTextLine(20, 110, COLOR_BLUE_LIGHT, "Range:");
+	GFGumpPic(120, 110, G_TX_MARBLE_S_DK);
+	var range := GFTextEntry(125, 110, 50, 20, COLOR_GREEN, pt.range);
+	GFTextLine(185, 110, COLOR_BLUE_LIGHT, "(sqrs)");
+
+	GFTextLine(20, 130, COLOR_BLUE_LIGHT, "Frequency:");
+	GFGumpPic(120, 130, G_TX_MARBLE_S_DK);
+	var freq := GFTextEntry(125, 130, 50, 20, COLOR_GREEN, pt.freq);
+	GFTextLine(185, 130, COLOR_BLUE_LIGHT, "(mins)");
+
+	GFTextLine(20, 150, COLOR_BLUE_LIGHT, "Time Expire:");
+	GFGumpPic(120, 150, G_TX_MARBLE_S_DK);
+	var expire := GFTextEntry(125, 150, 50, 20, COLOR_GREEN, pt.expire);
+	GFTextLine(185, 150, COLOR_BLUE_LIGHT, "(mins left)");
+
+	GFTextLine(20, 170, COLOR_BLUE_LIGHT, "Num Expire:");
+	GFGumpPic(120, 170, G_TX_MARBLE_S_DK);
+	var expirenum := GFTextEntry(125, 170, 50, 20, COLOR_GREEN, pt.expirenum);
+	GFTextLine(185, 170, COLOR_BLUE_LIGHT, "(num left)");
+
+	GFTextLine(20, 190, COLOR_BLUE_LIGHT, "Start HR:");
+	GFGumpPic(120, 190, G_TX_MARBLE_S_DK);
+	var starthr := GFTextEntry(125, 190, 50, 20, COLOR_GREEN, pt.starthr);
+	GFTextLine(185, 190, COLOR_BLUE_LIGHT, "(1-24)");
+
+	GFTextLine(20, 210, COLOR_BLUE_LIGHT, "End HR:");
+	GFGumpPic(120, 210, G_TX_MARBLE_S_DK);
+	var endhr := GFTextEntry(125, 210, 50, 20, COLOR_GREEN, pt.endhr);
+	GFTextLine(185, 210, COLOR_BLUE_LIGHT, "(1-24)");
+
+	GFTextLine(20, 230, COLOR_BLUE_LIGHT, "Note:");
+	GFGumpPic(20, 250, G_TX_MARBLE_SQ_L);
+	var note := GFTextEntry(25, 250, 200, 20, COLOR_GREEN, pt.note);
+
+	// Despawn option.
+	var despawn;
+	if (pt.despawn)
+		despawn := GFCheckBox(5, 280, G_STONE_CHECK_0, G_STONE_X_0, 1);
+		GFTextLine(35, 280, COLOR_RED, "Despawn on Destroy");
+	else
+		despawn := GFCheckBox(5, 280, G_STONE_CHECK_0, G_STONE_X_0, 0);
+		GFTextLine(35, 280, COLOR_BLUE_LIGHT, "Leave on Destroy");
+	endif
+
+	// Stagger option.
+	var group;
+	if (pt.group)
+		group := GFCheckBox(160, 280, G_STONE_X_0, G_STONE_CHECK_0, 1);
+		GFTextLine(190, 280, COLOR_BLUE_LIGHT, "Group");
+	else
+		group := GFCheckBox(160, 280, G_STONE_X_0, G_STONE_CHECK_0, 0);
+		GFTextLine(190, 280, COLOR_RED, "Stagger");
+	endif
+
+	// Reset command.
+	var reset := GFButtonID(160, 310, G_RED_DIAMOND_0, G_RED_DIAMOND_1, 1);
+	GFTextLine(190, 313, COLOR_YELLOW, "Reset");
+
+	GFPage(2);
+	GFResizePic(241, 0, BKGND_STONESLAB, 100, 100);
+
+	var npc := GFButtonID(245, 10, G_GRAY_CIRCLE_0, G_GRAY_CIRCLE_1, 1);
+	GFTextLine(265, 10, COLOR_GREEN, "NPC");
+
+	var container := GFButtonID(245, 30, G_GRAY_CIRCLE_0, G_GRAY_CIRCLE_1, 1);
+	GFTextLine(265, 30, COLOR_GREEN, "Container");
+
+	var item := GFButtonID(245, 50, G_GRAY_CIRCLE_0, G_GRAY_CIRCLE_1, 1);
+	GFTextLine(265, 50, COLOR_GREEN, "Item");
+
+	var keyret := GFSendGump(who);
+
+	// Check for page 2 button presses, redisplay if pressed.
+	if (keyret[npc.keyid])
+		SetObjProperty(point, "Type", "NPC");
+		pt.type := "NPC";
+		return 0;
+	elseif (keyret[container.keyid])
+		SetObjProperty(point, "Type", "Container");
+		pt.type := "Container";
+		return 0;
+	elseif (keyret[item.keyid])
+		SetObjProperty(point, "Type", "Item");
+		pt.type := "Item";
+		return 0;
+	endif
+
+	// Check for state change.
+	var disabledtxt := "";
+	if (keyret[state.keyid])
+		SetObjProperty(point, "Disabled", 1);
+		disabledtxt := "Disabled";
+		pt.disabled := 1;
+	else
+		EraseObjProperty(point, "Disabled");
+		pt.disabled := 0;
+	endif
+
+	// Check for Group option.
+	if (keyret[group.keyid])
+		SetObjProperty(point, "Group", 1);
+		pt.group := 1;
+	else
+		EraseObjProperty(point, "Group");
+		pt.group := 0;
+	endif
+
+	// Check for despawn change.
+	if (keyret[despawn.keyid])
+		SetObjProperty(point, "Despawn", 1);
+		pt.despawn := 1;
+	else
+		pt.despawn := 0;
+		EraseObjProperty(point, "Despawn");
+	endif
+
+	pt.template := GFExtractData(template.keyid, keyret);
+	pt.max := GFExtractData(max.keyid, keyret);
+	pt.range := GFExtractData(range.keyid, keyret);
+	pt.freq := GFExtractData(freq.keyid, keyret);
+	pt.expire := GFExtractData(expire.keyid, keyret);
+	pt.expirenum := GFExtractData(expirenum.keyid, keyret);
+	pt.starthr := GFExtractData(starthr.keyid, keyret);
+	pt.endhr := GFExtractData(endhr.keyid, keyret);
+	pt.note := GFExtractData(note.keyid, keyret);
+
+	// Set the other props.
+	SetObjProperty(point, "Type", pt.type);
+	SetObjProperty(point, "Template", pt.template);
+	SetObjProperty(point, "Max", pt.max);
+	SetObjProperty(point, "Range", pt.range);
+	SetObjProperty(point, "Frequency", pt.freq);
+	SetObjProperty(point, "Expire", pt.expire);
+	SetObjProperty(point, "ExpireNum", pt.expirenum);
+	SetObjProperty(point, "HrStart", pt.starthr);
+	SetObjProperty(point, "HrEnd", pt.endhr);
+	if (!pt.note)
+		pt.note := "<NONE>";
+	endif
+	SetObjProperty(point, "Note", pt.note);
+
+	var hrtxt := "";
+	if (pt.starthr and pt.endhr)
+		hrtxt := "HR: " + pt.starthr + " - " + pt.endhr;
+	endif
+
+	point.name := "SpawnPoint [" + pt.max + " " + pt.template + "] " + disabledtxt + hrtxt;
+
+	// Reset button.
+	if (keyret[reset.keyid])
+		DespawnAll(point);
+		Sleep(2);
+		SetObjProperty(point, "NextSpawn", 0);
+		SetObjProperty(point, "NextValidate", 0);
+	endif
+
+	// Send event to manager that config changed.
+	var ev := struct;
+	ev.+type := EVID_SPAWNPOINT_CHANGED;
+	ev.+source := point;
+	var pid := GetGlobalProperty("#SpawnPointManagerPID");
+	var proc := GetProcess(pid);
+	proc.SendEvent(ev);
+
+	return 1;
+endfunction*/

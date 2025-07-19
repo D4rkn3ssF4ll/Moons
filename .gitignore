@@ -1,0 +1,138 @@
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# =========================
+# Operating System Files
+# =========================
+
+# OSX
+# =========================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear on external disk
+.Spotlight-V100
+.Trashes
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+####### POL Related Files Section #######
+# POL realms (facets)
+realm/
+
+# POL MULs
+MUL/
+
+# POL Statics
+*.pol
+
+# SciTE and Sublime Support files
+*.session
+*.sublime-project
+*.sublime-workspace
+
+# Misc Directories used locally
+decoration/
+devpkg/
+Stuff to be added/
+info/
+temp/
+
+# Other files
+batchfiles/
+objtypes.txt
+data/
+docs/
+landtiles.cfg
+multis.cfg
+tiles.cfg
+ecompile.log
+leftovers.txt
+log/
+orphans.txt
+pol.cfg
+*.bak
+SH/
+
+# POL binaries and cfgs that are in the polserver release
+AoS-ML_uoconvert.cfg
+animxlate.cfg
+boats.cfg
+breaking-changes.txt
+clean_accounts.txt
+clean_pol.txt
+core-changes.txt
+ecompile.exe
+ecompile.cfg
+ecompile.cfg.example
+extobj.cfg
+HSA_uoconvert.cfg
+libmysql.dll
+packethooks.txt
+packets.zip
+pol.cfg.example
+pol.exe
+pol.RPT
+poltool.exe
+PolHook.dll
+polhook.exe
+polstart.bat
+polve.exe
+runecl.exe
+scripts/modules/*
+ToL_uoconvert.cfg
+uoconvert.exe
+uoconvert.cfg
+uoconvert.txt
+uotool.exe
+uotool.txt
+
+# PDB and DMP files
+*.pdb
+*.dmp
+
+# POL ecompile generated files
+*.ecl
+*.lst
+*.dbg
+*.dbg.txt
+*.dep
+
+# POL logs
+*.log
+log/*.log
+log/*/
+
+# Misc files
+scripts/eCompile_commands.txt
+scripts/ecompile.cfg.example
+Realm funcs.txt
+
+original*.zip
+POLConfigurator.dat
